@@ -1,0 +1,425 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>FBD Drag & Drop (with image)</title>
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<style>
+:root{
+  --box-size: 160px;   
+  --arrow-size: 56px;
+  --drop-width: 100px;
+  --drop-height: 66px;
+  --gap: 28px;
+}
+
+body{
+  font-family: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial;
+  margin: 12px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  color: #0d2430;
+}
+
+h2{ margin: 8px 0 24px; font-size: 18px; }
+
+/* layout wrapper for image + frame */
+.main {
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  gap: 50px;
+  flex-wrap: nowrap; /* side-by-side by default */
+  margin-top: 40px;
+}
+
+/* stack vertically on small screens */
+@media (max-width: 800px) {
+  .main {
+    flex-wrap: wrap;
+  }
+}
+
+.side-image {
+  max-width: 250px;
+  height: auto;
+  border-radius: 12px;
+  /* box-shadow: 0 4px 12px rgba(0,0,0,0.15); */
+  transform: scale(1.4);
+  margin-top: 40px; /* 👈 moves image down */
+  margin-right: 40px; /* 👈 moves image down */
+}
+
+.frame {
+  display:flex;
+  gap: var(--gap);
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  max-width: 900px;
+}
+
+.forces{
+  margin-right: 150px;
+  display:flex;
+  flex-direction: column;
+  gap: 10px;
+  align-items: center;
+  min-width: calc(var(--arrow-size) + 10px);
+}
+
+.arrow {
+  width: var(--arrow-size);
+  height: var(--arrow-size);
+  user-select: none;
+  touch-action: none;
+  cursor: grab;
+}
+.arrow:active { cursor: grabbing; }
+
+.fbd {
+  position: relative;
+  width: var(--box-size);
+  height: var(--box-size);
+  background: #d3d3d3; 
+  border-radius: 14px;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.12);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.dropzone{
+  position: absolute;
+  width: var(--drop-width);
+  height: var(--drop-height);
+  border: 2px dashed #2d2d2d;
+  background: #ffffff;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  border-radius:8px;
+  transition: border-color .18s, transform .12s;
+  font-size: 18px;
+  font-style: italic;
+  color: #0d2430;
+  text-align: center;
+}
+
+.dz-left  { left: calc(-1 * (var(--drop-width) + var(--gap) / 2)); top: 50%; transform: translateY(-50%); }
+.dz-top   { top: calc(-1 * (var(--drop-height) + var(--gap) / 2)); left: 50%; transform: translateX(-50%); }
+.dz-bottom{ bottom: calc(-1 * (var(--drop-height) + var(--gap) / 2)); left: 50%; transform: translateX(-50%); }
+
+.dropzone.correct { border-color: #1aa34a; box-shadow: 0 4px 12px rgba(26,163,74,0.12); }
+.dropzone.wrong   { border-color: #d33333; box-shadow: 0 4px 12px rgba(211,51,51,0.08); }
+
+.drag-ghost {
+  position: fixed;
+  width: var(--arrow-size);
+  height: var(--arrow-size);
+  pointer-events: none;
+  z-index: 9999;
+  opacity: 0.95;
+  transform: translate(-50%,-50%);
+}
+
+.controls {
+  margin-top: 60px;
+  display:flex;
+  gap:8px;
+  align-items:center;
+}
+
+/* Buttons */
+button {
+  padding: 10px 18px;
+  border-radius: 8px;
+  border: none;
+  font-weight: 600;
+  font-size: 16px;
+  cursor: pointer;
+  transition: transform 0.15s ease, box-shadow 0.15s ease, background 0.3s ease;
+}
+
+#checkBtn {
+  background: linear-gradient(135deg, #28a745, #1aa34a);
+  color: #fff;
+  box-shadow: 0 4px 8px rgba(26,163,74,0.4);
+}
+#checkBtn:hover {
+  transform: translateY(-2px) scale(1.05);
+  box-shadow: 0 6px 12px rgba(26,163,74,0.5);
+}
+#checkBtn:active {
+  transform: translateY(1px) scale(0.98);
+  box-shadow: 0 3px 6px rgba(26,163,74,0.4);
+}
+
+#resetBtn {
+  background: linear-gradient(135deg, #ff5e5e, #d33333);
+  color: #fff;
+  box-shadow: 0 4px 8px rgba(211,51,51,0.4);
+}
+#resetBtn:hover {
+  transform: translateY(-2px) scale(1.05);
+  box-shadow: 0 6px 12px rgba(211,51,51,0.5);
+}
+#resetBtn:active {
+  transform: translateY(1px) scale(0.98);
+  box-shadow: 0 3px 6px rgba(211,51,51,0.4);
+}
+
+/* Result animations */
+#result {
+  margin-left: 10px;
+  font-weight: 700;
+  font-size: 18px;
+  display: inline-block;
+  animation: none;
+}
+
+.correct-animation {
+  animation: popCorrect 0.4s ease forwards;
+  color: #1aa34a;
+}
+.wrong-animation {
+  animation: shakeWrong 0.4s ease forwards;
+  color: #d33333;
+}
+
+@keyframes popCorrect {
+  0% { transform: scale(0.8); opacity: 0; }
+  60% { transform: scale(1.2); opacity: 1; }
+  100% { transform: scale(1); opacity: 1; }
+}
+
+@keyframes shakeWrong {
+  0% { transform: translateX(0); }
+  20% { transform: translateX(-6px); }
+  40% { transform: translateX(6px); }
+  60% { transform: translateX(-4px); }
+  80% { transform: translateX(4px); }
+  100% { transform: translateX(0); }
+}
+
+.dropzone svg { width: calc(var(--arrow-size) * 0.9); height: calc(var(--arrow-size) * 0.9); }
+.dropzone .placed { position: relative; }
+
+.remove-btn {
+  position: absolute;
+  right: -8px;
+  top: -8px;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: #fff;
+  border: 1px solid #ccc;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.15);
+  cursor: pointer;
+}
+.remove-btn::before,
+.remove-btn::after {
+  content: '';
+  position: absolute;
+  width: 12px;
+  height: 2px;
+  background: #d33333;
+  top: 50%;
+  left: 50%;
+  transform-origin: center;
+}
+.remove-btn::before { transform: translate(-50%, -50%) rotate(45deg); }
+.remove-btn::after  { transform: translate(-50%, -50%) rotate(-45deg); }
+
+.label-center {
+  position: absolute;
+  font-size: 20px;
+  font-style: italic;
+  color: #000;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+}
+</style>
+
+<!-- MathJax -->
+<script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+</head>
+
+<body>
+<h2>Drag and Drop the Forces onto the Free Body Diagram</h2>
+
+<div class="main">
+  <!-- image on the left -->
+  <img src="drag_drop_image.png" alt="Reference diagram" class="side-image" />
+
+  <!-- drag and drop area -->
+  <div class="frame">
+    <div class="forces" id="forces">
+      <div class="arrow" data-id="right" title="Right force (drag)"> 
+        <svg viewBox="0 0 50 50"><polygon points="0,20 30,20 30,10 50,25 30,40 30,30 0,30" fill="#28a745"/></svg>
+      </div>
+      <div class="arrow" data-id="left" title="Left force (drag)"> 
+        <svg viewBox="0 0 50 50"><polygon points="50,20 20,20 20,10 0,25 20,40 20,30 50,30" fill="#28a745"/></svg>
+      </div>
+      <div class="arrow" data-id="up" title="Upwards force (drag)"> 
+        <svg viewBox="0 0 50 50"><polygon points="20,50 20,20 10,20 25,0 40,20 30,20 30,50" fill="#28a745"/></svg>
+      </div>
+      <div class="arrow" data-id="down" title="Downwards force (drag)"> 
+        <svg viewBox="0 0 50 50"><polygon points="20,0 20,30 10,30 25,50 40,30 30,30 30,0" fill="#28a745"/></svg>
+      </div>
+    </div>
+
+    <div class="fbd" id="fbd">
+      <div class="dropzone dz-left" data-zone="left" data-label="k(x - l_0)" data-latex="k(x - l_0)">\(k(x - l_0)\)</div>
+      <div class="dropzone dz-top" data-zone="top" data-label="mg" data-latex="mg">\(mg\)</div>
+      <div class="dropzone dz-bottom" data-zone="bottom" data-label="N" data-latex="N">\(N\)</div>
+      <div class="label-center">\(m\)</div>
+    </div>
+  </div>
+</div>
+
+<div class="controls">
+  <button id="checkBtn">Check Answer</button>
+  <button id="resetBtn">Reset</button>
+  <div id="result" aria-live="polite"></div>
+</div>
+
+<script>
+const arrows = Array.from(document.querySelectorAll('.arrow'));
+const dropzones = Array.from(document.querySelectorAll('.dropzone'));
+const dropped = {};
+let ghost = null;
+let draggingId = null;
+
+function makeGhost(arrowEl){
+  const g = arrowEl.cloneNode(true);
+  g.classList.add('drag-ghost');
+  document.body.appendChild(g);
+  return g;
+}
+function moveGhost(x,y){
+  if(!ghost) return;
+  ghost.style.left = x + 'px';
+  ghost.style.top  = y + 'px';
+}
+function placeInZone(zoneEl, arrowId){
+  zoneEl.innerHTML = '';
+  const base = arrows.find(a => a.dataset.id === arrowId);
+  if(!base) return;
+  const clone = base.cloneNode(true);
+  clone.classList.add('placed');
+  const wrapper = document.createElement('div');
+  wrapper.style.position = 'relative';
+  wrapper.appendChild(clone);
+
+  const removeBtn = document.createElement('button');
+  removeBtn.className = 'remove-btn';
+  removeBtn.addEventListener('click', ev => {
+    ev.stopPropagation();
+    const latex = zoneEl.dataset.latex || zoneEl.dataset.label;
+    zoneEl.innerHTML = `\\(${latex}\\)`;
+    delete dropped[zoneEl.dataset.zone];
+    zoneEl.classList.remove('correct','wrong');
+    MathJax.typesetPromise([zoneEl]);
+  });
+  wrapper.appendChild(removeBtn);
+
+  zoneEl.appendChild(wrapper);
+  dropped[zoneEl.dataset.zone] = arrowId;
+  MathJax.typesetPromise([zoneEl]);
+}
+
+function onPointerDown(e){
+  if(e.pointerType==='mouse' && e.button!==0) return;
+  const arrow = e.currentTarget;
+  draggingId = arrow.dataset.id;
+  ghost = makeGhost(arrow);
+  moveGhost(e.clientX, e.clientY);
+  arrow.setPointerCapture(e.pointerId);
+
+  function onMove(ev){ moveGhost(ev.clientX, ev.clientY); }
+  function onUp(ev){
+    const elUnder = document.elementFromPoint(ev.clientX, ev.clientY);
+    const zone = elUnder ? elUnder.closest('.dropzone'):null;
+    if(zone) placeInZone(zone, draggingId);
+    ghost.remove(); ghost=null; draggingId=null;
+    arrow.removeEventListener('pointermove', onMove);
+    arrow.removeEventListener('pointerup', onUp);
+    arrow.releasePointerCapture(e.pointerId);
+  }
+  arrow.addEventListener('pointermove', onMove);
+  arrow.addEventListener('pointerup', onUp);
+}
+arrows.forEach(a => a.addEventListener('pointerdown', onPointerDown));
+
+function createFireworks(targetEl) {
+  const colors = ['#28a745', '#1aa34a', '#ffe066', '#ff5e5e', '#d33333'];
+  const count = 20;
+  for (let i = 0; i < count; i++) {
+    const particle = document.createElement('div');
+    particle.style.position = 'absolute';
+    particle.style.width = '8px';
+    particle.style.height = '8px';
+    particle.style.borderRadius = '50%';
+    particle.style.background = colors[Math.floor(Math.random() * colors.length)];
+    particle.style.left = targetEl.offsetLeft + targetEl.offsetWidth/2 + 'px';
+    particle.style.top = targetEl.offsetTop + targetEl.offsetHeight/2 + 'px';
+    particle.style.pointerEvents = 'none';
+    particle.style.zIndex = 9999;
+    particle.style.opacity = 1;
+    document.body.appendChild(particle);
+
+    const angle = Math.random() * 2 * Math.PI;
+    const distance = 60 + Math.random() * 40;
+    const dx = Math.cos(angle) * distance;
+    const dy = Math.sin(angle) * distance;
+
+    particle.animate([
+      { transform: 'translate(0,0)', opacity: 1 },
+      { transform: `translate(${dx}px, ${dy}px)`, opacity: 0 }
+    ], {
+      duration: 600 + Math.random()*300,
+      easing: 'ease-out'
+    }).onfinish = () => particle.remove();
+  }
+}
+
+document.getElementById('checkBtn').addEventListener('click', () => {
+  const expected = { left:'left', top:'down', bottom:'up' };
+  let allCorrect = true;
+  dropzones.forEach(z => {
+    z.classList.remove('correct','wrong');
+    if(dropped[z.dataset.zone] === expected[z.dataset.zone]) z.classList.add('correct');
+    else { z.classList.add('wrong'); allCorrect=false; }
+  });
+  const r=document.getElementById('result');
+  r.classList.remove('correct-animation','wrong-animation');
+  if(allCorrect){
+    r.textContent = '✅ Correct!';
+    r.classList.add('correct-animation');
+    createFireworks(r);
+  }else{
+    r.textContent = '❌ Try again!';
+    r.classList.add('wrong-animation');
+  }
+});
+
+document.getElementById('resetBtn').addEventListener('click',()=>{
+  dropzones.forEach(z=>{
+    const latex = z.dataset.latex || z.dataset.label;
+    z.innerHTML = `\\(${latex}\\)`;
+    z.classList.remove('correct','wrong');
+    MathJax.typesetPromise([z]);
+  });
+  for(const k in dropped) delete dropped[k];
+  const r=document.getElementById('result');
+  r.textContent='';
+  r.classList.remove('correct-animation','wrong-animation');
+});
+
+MathJax.typesetPromise();
+</script>
+</body>
+</html>
